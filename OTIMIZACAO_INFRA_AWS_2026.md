@@ -61,20 +61,20 @@ pie title Distribuição da fatura abril/2026 (USD 11.498)
 
 ```mermaid
 gantt
-    title Ações de otimização AWS — 2026
+    title Acoes de otimizacao AWS - 2026
     dateFormat YYYY-MM-DD
     axisFormat %d/%m
     section Banco de Dados
-    Compra de Reserved Instance RDS (3yr All-Upfront)  :done, rds, 2026-04-25, 1d
+    RI RDS 3yr All-Upfront         :done, rds, 2026-04-25, 1d
     section OpenSearch
-    Migração de dados ES6.8 -> OpenSearch 2.13         :done, mig, 2026-04-29, 6d
-    Snapshot pre-deleção do ES 6.8                     :done, snap, 2026-05-05, 1h
-    Exclusão do cluster cepebr (ES 6.8)                :done, del, 2026-05-05, 1h
-    section Aplicações Legadas
-    Beanstalk cepe-elastic-ingestor zerado             :done, eb, 2026-05-04, 1d
-    section Pendências
-    Reduzir cepebr-v2 (3-AZ -> 1-AZ single-node)       :pend, p1, 2026-05-06, 1d
-    Comprar RI 3-yr No-Upfront para cepebr-v2          :pend, p2, after p1, 1d
+    Migracao ES6.8 para OS 2.13    :done, mig, 2026-04-29, 6d
+    Snapshot pre-delecao ES 6.8    :done, snap, 2026-05-05, 1d
+    Exclusao cluster cepebr        :done, del, 2026-05-05, 1d
+    section Aplicacoes Legadas
+    Beanstalk ingestor zerado      :done, eb, 2026-05-04, 1d
+    section Pendencias
+    Reduzir cepebr-v2 single-node  :crit, p1, 2026-05-06, 1d
+    Comprar RI 3yr cepebr-v2       :crit, p2, after p1, 1d
 ```
 
 ---
