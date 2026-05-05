@@ -72,9 +72,11 @@ gantt
     Exclusao cluster cepebr        :done, del, 2026-05-05, 1d
     section Aplicacoes Legadas
     Beanstalk ingestor zerado      :done, eb, 2026-05-04, 1d
+    Beanstalk env terminado        :done, ebt, 2026-05-05, 1d
+    section RI OpenSearch
+    Compra RI cepebr-v2 3yr        :done, ri2, 2026-05-05, 1d
     section Pendencias
     Reduzir cepebr-v2 single-node  :crit, p1, 2026-05-06, 1d
-    Comprar RI 3yr cepebr-v2       :crit, p2, after p1, 1d
 ```
 
 ---
@@ -124,34 +126,52 @@ A partir de **maio/2026**, o RDS PostgreSQL deixa de pesar na fatura recorrente.
 
 ---
 
-### 3. Beanstalk legado zerado
+### 3. Beanstalk legado eliminado
 
 **Contexto:** O ambiente Elastic Beanstalk `cepe-elastic-ingestor-prd` era o ingestor Java antigo de matérias para o ES 6.8. Substituído pelo novo indexador Node, mas o ambiente continuava ligado por inércia — uma instância `t3.micro` continuamente sendo recriada pelo Auto Scaling Group sempre que era desligada.
 
-**Ação:** Reduzido o ASG para `min=0, desired=0`, instância detached e parada. O ambiente Beanstalk permanece existindo (sem custo de instância) e pode ser terminado definitivamente após confirmação adicional.
+**Ação executada em duas etapas:**
+1. **04/05/2026** — Reduzido o ASG para `min=0, desired=0`, instância detached e parada
+2. **05/05/2026** — Ambiente Beanstalk terminado definitivamente (`terminate-environment --environment-id e-pp3yccr6dp`)
 
 | Item | Valor |
 |---|---|
 | Custo mensal antes | ~US$ 15-25 |
 | Custo mensal depois | US$ 0 |
+| Status | **Terminado** — sem possibilidade de reativação acidental |
 
 ---
 
-### 4. Pendência — Redução do `cepebr-v2`
+### 4. Reserved Instance OpenSearch (cepebr-v2) — 3 anos No-Upfront
 
-**O que falta fazer:** O cluster OpenSearch ativo `cepebr-v2` está provisionado em alta disponibilidade (3 nós × 3 zonas de disponibilidade), o que é desnecessário para o perfil de uso atual da busca eletrônica do SDOE — que tem **dois caminhos de fallback** (PDF e DocPro), tornando o impacto de eventual indisponibilidade da busca eletrônica baixo.
+**Contexto:** O cluster OpenSearch ativo `cepebr-v2` está provisionado em alta disponibilidade (3 nós × 3 zonas de disponibilidade), o que é desnecessário para o perfil de uso atual da busca eletrônica do SDOE — que tem **dois caminhos de fallback** (PDF e DocPro), tornando o impacto de eventual indisponibilidade da busca eletrônica baixo.
 
-**Plano:**
-1. Reduzir para configuração **single-node, single-AZ** com instância `m7g.large.search` (geração atual, ARM/Graviton)
-2. Comprar **Reserved Instance de 3 anos sem desembolso inicial** (No Upfront)
+**Plano em duas etapas:**
+
+**4.1 — Compra da Reserved Instance (executada em 05/05/2026):**
+
+| Item | Valor |
+|---|---|
+| Tipo de instância | `m7g.large.search` (Graviton, geração atual) |
+| Quantidade | 1 |
+| Período | 3 anos (até maio/2029) |
+| Pagamento | **No Upfront** (sem desembolso inicial) |
+| Custo recorrente | US$ 0,07/h ≈ **US$ 50,40/mês** |
+| Total 3 anos | US$ 1.814 (≈ R$ 9.977) |
+| ID da reserva | `b37021bc-53c5-422e-a977-60c4c4f5544f` |
+| Reservation name | `cepebr-v2-3yr-no-upfront` |
+
+**4.2 — Redução do cluster (a executar após conclusão do reindex em curso):**
+
+Reduzir para configuração **single-node, single-AZ** com instância `m7g.large.search`. A operação é blue/green online (sem downtime), demorando 1–2 horas para o OpenSearch replicar todos os shards para os novos nós.
 
 | Configuração | Custo mensal |
 |---|---|
-| Atual (3 nós × 3 AZ) | ~US$ 203 |
-| Proposta (1 nó single-AZ, on-demand) | ~US$ 76 |
-| Proposta com RI 3yr No-Upfront | **~US$ 58** |
+| Antes (3 nós × 3 AZ on-demand) | ~US$ 203 |
+| Após redução (1 nó single-AZ on-demand) | ~US$ 68 |
+| Após redução **+ RI ativa** | **~US$ 58** (compute) + ~US$ 8 (EBS) |
 
-**Economia adicional prevista:** ~US$ 145/mês = **US$ 1.740/ano**.
+**Economia recorrente prevista:** ~US$ 145/mês = **US$ 1.740/ano** = **US$ 5.220 em 3 anos**.
 
 ---
 
@@ -223,11 +243,10 @@ xychart-beta
 
 | # | Ação | Prazo | Responsável |
 |---|---|---|---|
-| 1 | Reduzir cluster `cepebr-v2` para single-node single-AZ com `m7g.large.search` | Após conclusão do reindex em curso | TI |
-| 2 | Comprar RI 3-yr No-Upfront para `cepebr-v2` | Imediatamente após passo 1 | TI |
-| 3 | Confirmar com equipe Java que nenhum sistema lê do ES 6.8 (validação adicional) | Próximos 7 dias | TI + Equipe Java |
-| 4 | Decidir destino final do ambiente Beanstalk legado (terminar ou manter zerado) | Após confirmação | TI |
-| 5 | Revisar mensalmente a fatura no Cost Explorer | Mensal | TI / Financeiro |
+| 1 | Reduzir cluster `cepebr-v2` para single-node single-AZ com `m7g.large.search` (RI já contratado) | Imediatamente após conclusão do reindex em curso | TI |
+| 2 | Confirmar com equipe Java que nenhum sistema lê do ES 6.8 (validação adicional) | Próximos 7 dias | TI + Equipe Java |
+| 3 | Revisar mensalmente a fatura no Cost Explorer | Mensal | TI / Financeiro |
+| 4 | Avaliar renovação dos RIs em abril/2029 | Abril/2029 | TI / Financeiro |
 
 ---
 
@@ -237,7 +256,8 @@ xychart-beta
 - **Cluster ativo:** `cepebr-v2` (OpenSearch 2.13, índice `publicacoes_unificado_v2` com alias `publicacoes_unificado`)
 - **Reserved Instances ativas:**
   - RDS: 2× `db.t4g.large` 3-yr All-Upfront (até abr/2029)
-  - OpenSearch: a contratar (1× `m7g.large.search` 3-yr No-Upfront)
+  - OpenSearch: 1× `m7g.large.search` 3-yr No-Upfront, ID `b37021bc-53c5-422e-a977-60c4c4f5544f` (até mai/2029)
+- **Beanstalk env terminado:** `cepe-elastic-ingestor-prd` (env-id `e-pp3yccr6dp`) — operação `terminate-environment` em 05/05/2026
 
 ---
 
