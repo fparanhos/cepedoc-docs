@@ -16,8 +16,8 @@ Em abril e maio de 2026 a equipe de TI executou um conjunto de ações de reduç
 | Fatura abril/2026 (com upfront RDS) | US$ 11.498 |
 | Fatura maio/2026 (forecast) | **US$ 5.701** |
 | Fatura projetada junho/2026 em diante | **US$ ~3.800** |
-| **Economia anual estimada** | **~US$ 30.000** |
-| **Economia em 3 anos (vida do RI RDS)** | **~US$ 90.000 (≈ R$ 495 mil)** |
+| **Economia anual estimada** | **~US$ 25.300** |
+| **Economia em 3 anos (vida do RI RDS)** | **~US$ 76.000 (≈ R$ 418 mil)** |
 
 A maior parcela da economia vem de duas decisões estruturais:
 
@@ -75,8 +75,9 @@ gantt
     Beanstalk env terminado        :done, ebt, 2026-05-05, 1d
     section RI OpenSearch
     Compra RI cepebr-v2 3yr        :done, ri2, 2026-05-05, 1d
-    section Pendencias
-    Reduzir cepebr-v2 single-node  :crit, p1, 2026-05-06, 1d
+    Reducao cepebr-v2 single-node  :done, red, 2026-05-05, 1d
+    section Transfer Family
+    Delete SFTP server pos BBSIA   :done, tf, 2026-05-05, 1d
 ```
 
 ---
@@ -142,6 +143,21 @@ A partir de **maio/2026**, o RDS PostgreSQL deixa de pesar na fatura recorrente.
 
 ---
 
+### 5. AWS Transfer Family — SFTP descontinuado
+
+**Contexto:** A CEPE mantinha um endpoint SFTP gerenciado pela AWS (`s-c0ee0f77ebbd43eeb`) que recebia arquivos do Banco do Brasil para a operação ATI. Com a migração para a nova integração **BBSIA** (API REST), o canal SFTP deixou de ser utilizado — endpoint estava com **0 usuários cadastrados**.
+
+**Ação:** Servidor Transfer Family deletado em 05/05/2026. Bucket S3 e roles IAM permanecem intactos para preservar histórico.
+
+| Item | Valor |
+|---|---|
+| Custo mensal antes | **US$ 216** (US$ 0,30/h × 720h, fixo independente do uso) |
+| Custo mensal depois | US$ 0 |
+| **Economia anual** | **~US$ 2.592** (≈ R$ 14.250) |
+| **Economia em 3 anos** | **~US$ 7.776** (≈ R$ 42.770) |
+
+---
+
 ### 4. Reserved Instance OpenSearch (cepebr-v2) — 3 anos No-Upfront
 
 **Contexto:** O cluster OpenSearch ativo `cepebr-v2` está provisionado em alta disponibilidade (3 nós × 3 zonas de disponibilidade), o que é desnecessário para o perfil de uso atual da busca eletrônica do SDOE — que tem **dois caminhos de fallback** (PDF e DocPro), tornando o impacto de eventual indisponibilidade da busca eletrônica baixo.
@@ -161,9 +177,11 @@ A partir de **maio/2026**, o RDS PostgreSQL deixa de pesar na fatura recorrente.
 | ID da reserva | `b37021bc-53c5-422e-a977-60c4c4f5544f` |
 | Reservation name | `cepebr-v2-3yr-no-upfront` |
 
-**4.2 — Redução do cluster (a executar após conclusão do reindex em curso):**
+**4.2 — Redução do cluster (executada em 05/05/2026, em curso):**
 
-Reduzir para configuração **single-node, single-AZ** com instância `m7g.large.search`. A operação é blue/green online (sem downtime), demorando 1–2 horas para o OpenSearch replicar todos os shards para os novos nós.
+Reduzido para configuração **single-node, single-AZ** com instância `m7g.large.search`. A operação é blue/green online (sem downtime), demorando 1–2 horas para o OpenSearch replicar todos os shards para os novos nós.
+
+> Disparado às 18:58 UTC de 05/05/2026, com `aws opensearch update-domain-config`. Subnet escolhida: `subnet-2dabf803` (us-east-1a). A partir do término da migração, a Reserved Instance comprada em 4.1 passa a ser efetivamente consumida.
 
 | Configuração | Custo mensal |
 |---|---|
@@ -178,12 +196,12 @@ Reduzir para configuração **single-node, single-AZ** com instância `m7g.large
 ## Origem da Economia Anual Consolidada
 
 ```mermaid
-pie title Composição da economia anual prevista (USD 30.510)
+pie title Composição da economia anual prevista (USD 25.342)
     "RDS PostgreSQL (RI 3yr All-Upfront)" : 12000
     "Eliminação do ES 6.8" : 8770
+    "Transfer Family SFTP descontinuado" : 2592
     "Redução cepebr-v2 + RI 3yr" : 1740
-    "Beanstalk legado zerado" : 240
-    "Outras otimizações pequenas" : 7760
+    "Beanstalk legado eliminado" : 240
 ```
 
 > Observação: a parcela "RDS RI" considera apenas a economia de uso recorrente (não o desembolso inicial). Em 3 anos a economia bruta do RDS é maior que US$ 36.000.
@@ -195,17 +213,17 @@ pie title Composição da economia anual prevista (USD 30.510)
 ```mermaid
 xychart-beta
     title "Fatura mensal AWS — antes vs depois das otimizações (USD)"
-    x-axis ["Mar/26 (antes)","Mai/26 (transição)","Jun/26 (parcial)","Jul/26+ (final)"]
+    x-axis ["Mar/26 (antes)","Mai/26 (transição)","Jun/26 (estimado)"]
     y-axis "USD" 0 --> 8000
-    bar [7141, 5701, 4500, 3800]
+    bar [7141, 5701, 4960]
 ```
 
 | Cenário | Mensal | Anual |
 |---|---|---|
-| Antes (média) | US$ 7.141 | US$ 85.692 |
+| Antes (média mar/26) | US$ 7.141 | US$ 85.692 |
 | Maio/2026 (transição) | US$ 5.701 | — |
-| Junho/2026 em diante (estimado) | **US$ 3.800** | **US$ 45.600** |
-| **Economia anual** | **US$ 3.341/mês** | **~US$ 40.000** |
+| Junho/2026 em diante (estimado) | **US$ 4.960** | **US$ 59.520** |
+| **Economia recorrente** | **US$ 2.181/mês** | **~US$ 26.000/ano** |
 
 ---
 
@@ -216,14 +234,14 @@ xychart-beta
     title "Fatura mensal projetada (USD) — Mai/26 a Abr/29"
     x-axis ["Mai26","Ago26","Nov26","Fev27","Mai27","Ago27","Nov27","Fev28","Mai28","Ago28","Nov28","Fev29"]
     y-axis "USD" 0 --> 7000
-    bar [5701, 3800, 3800, 3800, 3800, 3800, 3800, 3800, 3800, 3800, 3800, 3800]
+    bar [5701, 4960, 4960, 4960, 4960, 4960, 4960, 4960, 4960, 4960, 4960, 4960]
 ```
 
 | Período | Custo total estimado |
 |---|---|
-| Trajetória atual (sem otimizações) | ~US$ 240.000 |
-| Após otimizações executadas | ~US$ 140.000 |
-| **Economia em 3 anos** | **~US$ 100.000 (≈ R$ 550 mil)** |
+| Trajetória atual (sem otimizações) | ~US$ 257.000 |
+| Após otimizações executadas | ~US$ 178.000 |
+| **Economia em 3 anos** | **~US$ 79.000 (≈ R$ 434 mil)** |
 
 ---
 
