@@ -18,17 +18,21 @@ Esse documento organiza o backlog em **médio prazo** (executável neste mês) e
 
 ```mermaid
 pie title Status das otimizações iniciadas
-    "Concluídas (10)" : 10
-    "Em curso (1: redução cepebr-v2)" : 1
-    "Pendente médio prazo (5)" : 5
-    "Pendente estratégico (4)" : 4
+    "Concluídas" : 14
+    "Em curso (redução cepebr-v2)" : 1
+    "Pendente médio prazo" : 3
+    "Pendente estratégico" : 4
 ```
 
-**Concluídas hoje:**
-- ✅ Cost Anomaly Detection (alerta anomalias por serviço, e-mail diário)
+**Concluídas em 05/05/2026:**
+- ✅ Cost Anomaly Detection (alerta anomalias por serviço, e-mail diário pra fernando.paranhos@gmail.com)
 - ✅ AWS Budget (limite mensal US$ 6.500 com alertas em 80% / 100% / forecast)
 - ✅ PM2 reativado (`indexar-materias`, `indexar-materias-cron`, `conferencia-cron`)
 - ✅ Audit de waste AWS: zero EIPs órfãos, zero EBS volumes órfãos
+- ✅ **VPC Gateway Endpoints S3 + DynamoDB** — criados em todas as 5 VPCs (10 endpoints, gratuito, corta tráfego NAT)
+- ✅ **S3 Lifecycle no bucket `esnovo`** — snapshots ES envelhecem para Glacier IR (30d) e Deep Archive (365d)
+- ✅ **EventBridge Scheduler para HML** — `SDOE_HML_030223` para automaticamente 22h-7h BRT em dias úteis e fins de semana inteiros (~70% off, economia ~$60/mês)
+- ✅ Processo zumbi `soffice` (LibreOffice headless idle 2 dias) eliminado — liberou 1,6 GB RAM no servidor
 
 ---
 
@@ -42,16 +46,16 @@ gantt
     section Quick Wins
     Cost Anomaly + Budget          :done, qw1, 2026-05-05, 1d
     PM2 reativado                  :done, qw2, 2026-05-05, 1d
-    Cleanup snapshots antigos      :crit, qw3, 2026-05-08, 2d
+    VPC Endpoints S3+DDB           :done, qw3, 2026-05-05, 1d
+    S3 lifecycle esnovo            :done, qw4, 2026-05-05, 1d
+    Stop scheduler HML             :done, qw5, 2026-05-05, 1d
+    Kill soffice zumbi             :done, qw6, 2026-05-05, 1d
+    Cleanup snapshots antigos      :crit, qw7, 2026-05-08, 2d
     section Auditorias
     Lightsail audit                :a1, 2026-05-08, 2d
     DocPro arquitetura ARM         :a2, 2026-05-12, 5d
     section Migracoes
     Graviton easy wins (4 t2)      :crit, m1, 2026-05-13, 5d
-    Stop scheduler HML             :m2, 2026-05-19, 3d
-    VPC Endpoints S3+DDB           :m3, 2026-05-22, 2d
-    section Limpeza
-    S3 lifecycle policies          :l1, 2026-05-26, 2d
 ```
 
 ### 1. Limpeza de snapshots antigos
