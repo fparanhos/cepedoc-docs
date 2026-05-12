@@ -1,23 +1,31 @@
-Projeto: Sistema de Inteligência para Diários Oficiais de Pernambuco
-Versão: 1.0Data: Maio de 2026Período coberto: 2019 – presenteStack base: OpenSearch 2.xx + Claude (Anthropic) + Python
+# Projeto: Sistema de Inteligência para Diários Oficiais de Pernambuco
 
-1. Visão geral
+**Versão:** 1.0  
+**Data:** Maio de 2026  
+**Período coberto:** 2019 – presente  
+**Stack base:** OpenSearch 2.xx + Claude (Anthropic) + Python
+
+---
+
+## 1. Visão geral
+
 O projeto transforma o acervo de Diários Oficiais do Estado de Pernambuco — já estruturado matéria por matéria no OpenSearch — em um sistema de inteligência capaz de responder perguntas complexas em linguagem natural sobre um período de quase 7 anos de publicações.
-Problemas que resolve
-Problema
-Solução
-Qual decreto está vigente hoje sobre tema X?
-Grafo de vigência com campo vigente: bool atualizado a cada publicação
-Qual decreto revogou/substituiu o anterior?
-Campo revoga_ids com encadeamento completo de revogações
-Todas as nomeações da Secretaria X no período
-Ontologia de atos de pessoal unificando ~15 sinônimos em tipo_ato_canonico
-Este cargo comissionado está disponível?
-Índice de cargos com estado atual + histórico de ocupações
-Quem foi nomeado/exonerado pela governadora vs secretário?
-Campo autoridade_assinante classificado por categoria
 
-2. Arquitetura geral
+### Problemas que resolve
+
+| Problema | Solução |
+|---|---|
+| Qual decreto está vigente hoje sobre tema X? | Grafo de vigência com campo `vigente: bool` atualizado a cada publicação |
+| Qual decreto revogou/substituiu o anterior? | Campo `revoga_ids` com encadeamento completo de revogações |
+| Todas as nomeações da Secretaria X no período | Ontologia de atos de pessoal unificando ~15 sinônimos em `tipo_ato_canonico` |
+| Este cargo comissionado está disponível? | Índice de cargos com estado atual + histórico de ocupações |
+| Quem foi nomeado/exonerado pela governadora vs secretário? | Campo `autoridade_assinante` classificado por categoria |
+
+---
+
+## 2. Arquitetura geral
+
+```
 Diário Oficial publicado (PDF/texto)
         │
         ▼
@@ -51,10 +59,17 @@ Diário Oficial publicado (PDF/texto)
                │
                ▼
     Resposta com fonte, data, decreto
+```
 
-3. Índice base — diario_materias
-Este é o coração da arquitetura. Guarda o documento original de cada matéria exatamente como foi publicado. Sua estrutura nunca muda — é o ponto de partida de todos os índices derivados.
-Mapping
+---
+
+## 3. Índice base — `diario_materias`
+
+Este é o coração da arquitetura. Guarda o documento original de cada matéria exatamente como foi publicado. Sua estrutura **nunca muda** — é o ponto de partida de todos os índices derivados.
+
+### Mapping
+
+```json
 {
   "mappings": {
     "properties": {
@@ -80,12 +95,21 @@ Mapping
     }
   }
 }
-Regra importante
-Qualquer campo novo (ex: tipo_ato_canonico, vigente, entidades) não vai para o índice base — vai para o índice derivado correspondente. Isso garante que os derivados possam ser reconstruídos a qualquer momento sem perda.
+```
 
-4. Índices derivados
-4.1 idx_decretos — Grafo de vigência
-Resolve: "Qual decreto está em vigor hoje sobre X?", "Qual decreto revogou o Decreto Nº Y?"
+### Regra importante
+
+Qualquer campo novo (ex: `tipo_ato_canonico`, `vigente`, `entidades`) **não vai para o índice base** — vai para o índice derivado correspondente. Isso garante que os derivados possam ser reconstruídos a qualquer momento sem perda.
+
+---
+
+## 4. Índices derivados
+
+### 4.1 `idx_decretos` — Grafo de vigência
+
+Resolve: *"Qual decreto está em vigor hoje sobre X?"*, *"Qual decreto revogou o Decreto Nº Y?"*
+
+```json
 {
   "mappings": {
     "properties": {
@@ -106,7 +130,11 @@ Resolve: "Qual decreto está em vigor hoje sobre X?", "Qual decreto revogou o De
     }
   }
 }
-Lógica de vigência no pipeline
+```
+
+#### Lógica de vigência no pipeline
+
+```python
 # Padrões detectados no texto para atualização do grafo
 PADROES_REVOGACAO = [
     r"fica(?:m)? revogad[oa]s?\s+o\s+Decreto\s+[Nn][ºo°]\s*([\d\.]+)",
@@ -136,7 +164,11 @@ def processar_decreto(texto: str, numero: str) -> dict:
         "revoga_ids": revoga,
         "alterado_por_ids": altera,
     }
-Consulta por vigência
+```
+
+#### Consulta por vigência
+
+```json
 {
   "query": {
     "bool": {
@@ -150,9 +182,15 @@ Consulta por vigência
     }
   }
 }
+```
 
-4.2 idx_pessoal — Atos de pessoal
-Resolve: "Todas as nomeações da Secretaria de Saúde em 2023", "Quem foi transferido pelo secretário da Educação?"
+---
+
+### 4.2 `idx_pessoal` — Atos de pessoal
+
+Resolve: *"Todas as nomeações da Secretaria de Saúde em 2023"*, *"Quem foi transferido pelo secretário da Educação?"*
+
+```json
 {
   "mappings": {
     "properties": {
@@ -176,8 +214,13 @@ Resolve: "Todas as nomeações da Secretaria de Saúde em 2023", "Quem foi trans
     }
   }
 }
-Ontologia de atos de pessoal
+```
+
+#### Ontologia de atos de pessoal
+
 Esta é a peça central para resolver a fragmentação de vocabulário:
+
+```python
 ONTOLOGIA_ATOS = {
     # Nomeações
     "NOMEACAO": [
@@ -221,7 +264,11 @@ def canonicalizar_ato(texto_ato: str) -> str:
         if any(s in texto_lower for s in sinonimos):
             return canonico
     return "OUTROS"
-Classificação da autoridade assinante
+```
+
+#### Classificação da autoridade assinante
+
+```python
 HIERARQUIA_ASSINANTES = {
     "GOVERNADORA": [
         "governadora do estado", "governador do estado",
@@ -236,7 +283,11 @@ HIERARQUIA_ASSINANTES = {
         "procurador", "defensor", "controlador"
     ]
 }
-Consulta exemplo — todas as movimentações de uma secretaria
+```
+
+#### Consulta exemplo — todas as movimentações de uma secretaria
+
+```json
 {
   "query": {
     "bool": {
@@ -265,9 +316,15 @@ Consulta exemplo — todas as movimentações de uma secretaria
   "size": 500,
   "sort": [{ "data_publicacao": "asc" }]
 }
+```
 
-4.3 idx_cargos — Estado de cargos comissionados
-Resolve: "O cargo de Assessor Especial da SEFAZ está disponível?", "Quem ocupa o cargo X atualmente?"
+---
+
+### 4.3 `idx_cargos` — Estado de cargos comissionados
+
+Resolve: *"O cargo de Assessor Especial da SEFAZ está disponível?"*, *"Quem ocupa o cargo X atualmente?"*
+
+```json
 {
   "mappings": {
     "properties": {
@@ -295,7 +352,11 @@ Resolve: "O cargo de Assessor Especial da SEFAZ está disponível?", "Quem ocupa
     }
   }
 }
-Lógica de atualização de estado
+```
+
+#### Lógica de atualização de estado
+
+```python
 def atualizar_cargo(cargo_id: str, ato: dict):
     cargo = opensearch.get(index="idx_cargos", id=cargo_id)
     historico = cargo["_source"].get("historico", [])
@@ -327,9 +388,15 @@ def atualizar_cargo(cargo_id: str, ato: dict):
         body={"doc": {**novo_status, "historico": historico,
                       "data_ultima_atualizacao": ato["data_publicacao"]}}
     )
+```
 
-5. Pipeline de ingestão
-5.1 Fluxo completo
+---
+
+## 5. Pipeline de ingestão
+
+### 5.1 Fluxo completo
+
+```
 PDF/texto do diário
       │
       ▼
@@ -360,8 +427,13 @@ PDF/texto do diário
 6. Roteamento para derivados
    └── Se DECRETO → processar_decreto() → idx_decretos
    └── Se pessoal → canonicalizar_ato() → idx_pessoal + atualizar_cargo() → idx_cargos
-5.2 Ingestão retroativa do acervo 2019–hoje
+```
+
+### 5.2 Ingestão retroativa do acervo 2019–hoje
+
 Para popular os índices derivados a partir do acervo já existente no índice base:
+
+```python
 from opensearchpy.helpers import scan
 
 def reindexar_derivado(index_destino: str, processor_fn):
@@ -386,7 +458,11 @@ def reindexar_derivado(index_destino: str, processor_fn):
 reindexar_derivado("idx_decretos", processar_decreto)
 reindexar_derivado("idx_pessoal",  processar_pessoal)
 reindexar_derivado("idx_cargos",   processar_cargos)
-5.3 Criação de novo índice no futuro (sem reindexar os outros)
+```
+
+### 5.3 Criação de novo índice no futuro (sem reindexar os outros)
+
+```python
 # Exemplo: novo índice de licitações criado 2 anos depois
 def criar_indice_licitacoes():
     # 1. Cria o índice com o novo mapping
@@ -397,9 +473,15 @@ def criar_indice_licitacoes():
     reindexar_derivado("idx_licitacoes", processar_licitacao)
     
     # Índices idx_decretos, idx_pessoal, idx_cargos não são tocados
+```
 
-6. Estratégia de busca híbrida
-6.1 Query combinada BM25 + kNN
+---
+
+## 6. Estratégia de busca híbrida
+
+### 6.1 Query combinada BM25 + kNN
+
+```python
 def buscar_hibrida(
     query_text: str,
     query_embedding: list,
@@ -453,7 +535,11 @@ def construir_filtros(filtros: dict) -> list:
             "lte": filtros.get("data_fim", "now")
         }}})
     return f
-6.2 Reranker com Cross-Encoder (opcional, alta precisão)
+```
+
+### 6.2 Reranker com Cross-Encoder (opcional, alta precisão)
+
+```python
 from sentence_transformers import CrossEncoder
 
 reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
@@ -463,9 +549,15 @@ def rerankar(query: str, docs: list, top_k: int = 20) -> list:
     scores = reranker.predict(pares)
     docs_scored = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
     return [doc for doc, _ in docs_scored[:top_k]]
+```
 
-7. Integração com Claude (Anthropic)
-7.1 Prompt de síntese
+---
+
+## 7. Integração com Claude (Anthropic)
+
+### 7.1 Prompt de síntese
+
+```python
 import anthropic
 
 client = anthropic.Anthropic()
@@ -508,7 +600,11 @@ def formatar_documentos(docs: list) -> str:
             f"{s.get('texto_completo', '')[:800]}\n"
         )
     return "\n---\n".join(partes)
-7.2 Fluxo completo de uma pergunta
+```
+
+### 7.2 Fluxo completo de uma pergunta
+
+```python
 def responder_pergunta(pergunta: str, filtros: dict = {}) -> dict:
     # 1. Gera embedding da pergunta
     embedding = gerar_embedding(pergunta)
@@ -546,8 +642,13 @@ def responder_pergunta(pergunta: str, filtros: dict = {}) -> dict:
             for d in top_docs
         ]
     }
-7.3 Casos especiais: consultas agregadas
+```
+
+### 7.3 Casos especiais: consultas agregadas
+
 Para perguntas que precisam de todos os registros (não apenas os mais relevantes):
+
+```python
 def listar_decretos_vigentes(tema: str, secretaria: str = None) -> dict:
     """Retorna TODOS os decretos vigentes sobre um tema — não usa top-k."""
     
@@ -578,17 +679,27 @@ def listar_decretos_vigentes(tema: str, secretaria: str = None) -> dict:
     )
     
     return {"total": total, "resumo": resumo, "decretos": docs}
+```
 
-8. Criação de novos índices ao longo do tempo
-Quando NÃO precisa reindexar
-	•	Novo índice derivado (licitações, contratos, convênios, portarias)
-	•	Novo campo adicionado via dynamic mapping em documentos futuros
-	•	Novo alias ou view sobre índices existentes
-Quando PRECISA reindexar (apenas o derivado afetado)
-	•	Mudança de tipo de campo existente (ex: text → keyword)
-	•	Adição de campo vetorial em documentos já indexados
-	•	Mudança do modelo de embedding (dimensão diferente)
-Procedimento de reindexação sem downtime
+---
+
+## 8. Criação de novos índices ao longo do tempo
+
+### Quando NÃO precisa reindexar
+
+- Novo índice derivado (licitações, contratos, convênios, portarias)
+- Novo campo adicionado via `dynamic mapping` em documentos futuros
+- Novo alias ou view sobre índices existentes
+
+### Quando PRECISA reindexar (apenas o derivado afetado)
+
+- Mudança de tipo de campo existente (ex: `text` → `keyword`)
+- Adição de campo vetorial em documentos já indexados
+- Mudança do modelo de embedding (dimensão diferente)
+
+### Procedimento de reindexação sem downtime
+
+```python
 def reindexar_sem_downtime(index_atual: str, novo_mapping: dict, processor_fn):
     novo_index = f"{index_atual}_v2"
     
@@ -609,47 +720,56 @@ def reindexar_sem_downtime(index_atual: str, novo_mapping: dict, processor_fn):
     # 4. Remove o índice antigo após validação
     # opensearch.indices.delete(index=index_atual)
     print(f"Switch completo: {index_atual} → {novo_index}")
+```
 
-9. Roadmap de implementação
-Fase 1 — Fundação (semanas 1–3)
-	•	[ ] Revisar e validar o índice base existente (diario_materias)
-	•	[ ] Implementar o classificador de tipo de matéria
-	•	[ ] Criar idx_decretos e popular com o acervo 2019–hoje
-	•	[ ] Validar grafo de vigência em amostra de 100 decretos
-Fase 2 — Pessoal (semanas 4–6)
-	•	[ ] Implementar ontologia de atos de pessoal
-	•	[ ] Criar idx_pessoal e popular com o acervo
-	•	[ ] Validar classificação de autoridade assinante
-	•	[ ] Criar idx_cargos com estado atual de cargos comissionados
-Fase 3 — Busca e síntese (semanas 7–9)
-	•	[ ] Implementar query engine híbrida BM25 + kNN
-	•	[ ] Integrar reranker (Cross-Encoder)
-	•	[ ] Implementar integração com Claude API
-	•	[ ] Testes de qualidade: recall e precisão por tipo de pergunta
-Fase 4 — Interface e produção (semanas 10–12)
-	•	[ ] API REST (FastAPI) para receber perguntas e retornar respostas
-	•	[ ] Interface de chat web (React ou Streamlit)
-	•	[ ] Pipeline de atualização diária automática
-	•	[ ] Monitoramento e alertas
+---
 
-10. Estimativas de volume
-Índice
-Registros estimados
-Tamanho estimado
-diario_materias (base)
-~500 mil matérias
-~15–25 GB
-idx_decretos
-~30–50 mil decretos
-~3–5 GB
-idx_pessoal
-~200–400 mil atos
-~8–12 GB
-idx_cargos
-~5–10 mil cargos
-~500 MB
+## 9. Roadmap de implementação
 
-11. Dependências Python
+### Fase 1 — Fundação (semanas 1–3)
+
+- [ ] Revisar e validar o índice base existente (`diario_materias`)
+- [ ] Implementar o classificador de tipo de matéria
+- [ ] Criar `idx_decretos` e popular com o acervo 2019–hoje
+- [ ] Validar grafo de vigência em amostra de 100 decretos
+
+### Fase 2 — Pessoal (semanas 4–6)
+
+- [ ] Implementar ontologia de atos de pessoal
+- [ ] Criar `idx_pessoal` e popular com o acervo
+- [ ] Validar classificação de autoridade assinante
+- [ ] Criar `idx_cargos` com estado atual de cargos comissionados
+
+### Fase 3 — Busca e síntese (semanas 7–9)
+
+- [ ] Implementar query engine híbrida BM25 + kNN
+- [ ] Integrar reranker (Cross-Encoder)
+- [ ] Implementar integração com Claude API
+- [ ] Testes de qualidade: recall e precisão por tipo de pergunta
+
+### Fase 4 — Interface e produção (semanas 10–12)
+
+- [ ] API REST (FastAPI) para receber perguntas e retornar respostas
+- [ ] Interface de chat web (React ou Streamlit)
+- [ ] Pipeline de atualização diária automática
+- [ ] Monitoramento e alertas
+
+---
+
+## 10. Estimativas de volume
+
+| Índice | Registros estimados | Tamanho estimado |
+|---|---|---|
+| `diario_materias` (base) | ~500 mil matérias | ~15–25 GB |
+| `idx_decretos` | ~30–50 mil decretos | ~3–5 GB |
+| `idx_pessoal` | ~200–400 mil atos | ~8–12 GB |
+| `idx_cargos` | ~5–10 mil cargos | ~500 MB |
+
+---
+
+## 11. Dependências Python
+
+```txt
 opensearch-py>=2.4.0
 anthropic>=0.25.0
 sentence-transformers>=2.6.0
@@ -661,8 +781,13 @@ uvicorn>=0.29.0
 pydantic>=2.0.0
 tenacity>=8.2.0
 loguru>=0.7.0
+```
 
-12. Variáveis de ambiente
+---
+
+## 12. Variáveis de ambiente
+
+```bash
 OPENSEARCH_HOST=https://seu-opensearch:9200
 OPENSEARCH_USER=admin
 OPENSEARCH_PASS=sua_senha
@@ -671,6 +796,9 @@ EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_API_KEY=sk-...          # apenas se usar embeddings da OpenAI
 RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
 LOG_LEVEL=INFO
+```
 
-Documento gerado para uso com Claude Code na implementação.Próximo passo: abrir o Claude Code com este arquivo como referência e começar pela Fase 1.
+---
 
+*Documento gerado para uso com Claude Code na implementação.*  
+*Próximo passo: abrir o Claude Code com este arquivo como referência e começar pela Fase 1.*
